@@ -87,6 +87,91 @@ Submitted to **Dr. Aziah Binti Ali**
 
 ---
 
+## Challenges & Solutions
+
+### Technical Hurdles
+
+#### 1. TopoJSON reference error in Opera GX (and Chromium-based browsers)
+
+The original `index.html` loaded TopoJSON from cdnjs:
+
+```
+https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson-client.min.js
+```
+
+On Opera GX (and some Chromium builds with strict CSP or content-blocking), the `topojson` global was not exposed correctly, causing the choropleth map to throw:
+
+```
+ReferenceError: topojson is not defined
+```
+
+The map panel rendered blank and the country-click interaction was broken across the whole dashboard because `byIso` lookups depended on features resolved through TopoJSON.
+
+#### 2. D3 double-click conflict with brush zoom
+
+D3's built-in zoom handler registers its own `dblclick.zoom` listener. When the brushable line chart (Chart 1) and the choropleth map both had zoom + custom double-click reset, the native zoom handler fired first and prevented the custom reset from running, leaving the view stuck after a zoom.
+
+#### 3. Data cleaning — missing ISO-3 codes
+
+Several countries in the UNDP dataset used non-standard ISO-3 codes (e.g. Kosovo `XKX`, Channel Islands) that had no matching feature in the world TopoJSON. These rows still appeared in dropdowns and rankings but produced silent no-ops on the map, with no visual indication to the user.
+
+---
+
+### Solutions
+
+#### Fix 1 — Switch CDN to jsDelivr
+
+Replaced the cdnjs URL with the jsDelivr package URL, which correctly sets `window.topojson` as a UMD global across all Chromium-based browsers:
+
+```js
+// Before (broken in Opera GX)
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson-client.min.js"></script>
+
+// After (works everywhere)
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+```
+
+Also bumped the patch version from `3.0.2` → `3.1.0` which includes a fix for feature-collection edge cases.
+
+#### Fix 2 — Suppress native zoom dblclick, wire custom reset
+
+D3's zoom attaches as `dblclick.zoom`. Calling `.on("dblclick.zoom", null)` on the SVG removes it, then a separate listener on the outer `div` triggers `zoom.transform` back to `d3.zoomIdentity`:
+
+```js
+// Disable D3's built-in double-click zoom handler
+svg.on("dblclick.zoom", null);
+
+// Wire a clean reset on the container div instead
+d3.select("#chartMap").on("dblclick", () => {
+  svg.transition()
+     .duration(400)
+     .call(zoom.transform, d3.zoomIdentity);
+});
+```
+
+The same pattern is applied to the bubble scatter chart (`#chartBubble`) so both zoomable panels reset consistently.
+
+#### Fix 3 — Graceful null handling for unmatched ISO-3 codes
+
+The `valueFor()` helper already returns `null` for missing records. The map fill logic was extended to fall back to a neutral grey, and the tooltip falls back to `d.properties.name` when `byIso` has no match:
+
+```js
+function valueFor(iso3, year) {
+  const recs = byIso.get(iso3);
+  if (!recs) return null;           // no match → grey on map, skip in rankings
+  const rec = recs.find(r => r.year === year);
+  return rec ? rec.pr_f : null;
+}
+
+// In the mousemove handler — graceful name fallback
+const name = (byIso.get(iso3) && byIso.get(iso3)[0].country)
+             || d.properties.name;  // TopoJSON built-in name as last resort
+```
+
+Data cleaning in Excel/Python removed rows where both `iso3` and `country` were blank, and standardised `XKX` entries so Kosovo appears correctly in charts even when absent from the map.
+
+---
+
 ## Data Sources
 
 - UNDP Human Development Reports — Gender Inequality Index (GII)
