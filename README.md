@@ -2,7 +2,9 @@
 
 **CDS6324 Data Visualization Project · Group TT4L_G11**
 
-An interactive, single-page data visualization dashboard that explores how sex shapes survival, education, work, and power across 193 countries from 1990 to 2023. Built on composite indices from the [UNDP Human Development Report](https://hdr.undp.org/).
+An interactive data visualization site that explores how sex shapes survival, education, work, and power across 193 countries from 1990 to 2023. Built on composite indices from the [UNDP Human Development Report](https://hdr.undp.org/).
+
+The site has two pages — a main six-panel dashboard and a side-by-side country comparison tool.
 
 ---
 
@@ -19,15 +21,22 @@ The dashboard contains six linked chart panels, all controlled by a shared regio
 
 | # | Theme | Chart type |
 |---|-------|-----------|
+**Main dashboard (`index.html`) — six linked panels:**
+
+| # | Theme | Chart type |
+|---|-------|-----------|
 | 1 | Health & Survival Gap | Line chart + ranked bar |
-| 2 | Maternal Health Risk Landscape | Choropleth map |
-| 3 | Education Parity | Diverging bar / small multiples |
-| 4 | Labour Force Participation Gap | Area chart |
-| 5 | Political Empowerment | Dot / lollipop chart |
-| 6 | Gender Inequality Index (GII) | Choropleth map + trend |
+| 2 | Maternal Health Risk Landscape | Bubble scatter (log scale) |
+| 3 | Secondary Education Gap | Diverging bar chart |
+| 4 | Labour Force Participation Gap | Area chart over time |
+| 5 | Female Seats in Parliament | World choropleth map |
+| 6 | Gender Inequality Index (GII) | Best/worst ranking bars |
+
+**Comparison page (`comparison.html`):**  
+Pick any two countries and a year to see a side-by-side breakdown of all indicators with winner highlighting and a full indicator table.
 
 **Key interactions**
-- Click any country on a map or ranking bar to highlight it across every panel
+- Click any country on a map or ranking to highlight it across every panel
 - Drag the year slider (or press **Play**) to animate 1990–2023
 - Filter by world region to narrow comparisons
 
@@ -37,12 +46,15 @@ The dashboard contains six linked chart panels, all controlled by a shared regio
 
 ```
 .
-├── index.html      # Self-contained dashboard (HTML + embedded CSS + JS + D3)
-├── netlify.toml    # Netlify deployment configuration
+├── index.html        # Main dashboard — six linked chart panels
+├── comparison.html   # Country comparison page
+├── styles.css        # Shared stylesheet
+├── data.js           # Shared dataset (UNDP HDR columnar data + world TopoJSON)
+├── netlify.toml      # Netlify deployment configuration
 └── README.md
 ```
 
-All data, styles, and JavaScript (including D3 v7) are bundled inline inside `index.html` — no build step or server required.
+No build step or server required. D3 v7 and TopoJSON are loaded from jsDelivr CDN.
 
 ---
 
@@ -67,9 +79,9 @@ No build command or environment variables are needed.
 
 | Name | Contribution |
 |------|-------------|
-| Abdullah Nasih Ulwan | Health & Survival (Panel 1 & 2) |
-| Imran Syahmi | Education Parity (Panel 3) |
-| Danish Adam | Labour, Politics & GII (Panel 4–6) |
+| Abdullah Nasih Ulwan | Health & Survival (Panels 1 & 2) |
+| Imran Syahmi | Education & Labour Participation (Panels 3 & 4) |
+| Danish Adam | Political Power & GII (Panels 5 & 6) |
 
 Submitted to **Dr. Aziah Binti Ali**
 

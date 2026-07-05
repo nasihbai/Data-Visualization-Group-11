@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Country Comparison — SDG 5 Gender Equality | TT4L_G11</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <nav class="site-nav">
+      <span class="site-nav-brand">SDG 5 &middot; TT4L_G11</span>
+      <div class="site-nav-links">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="comparison.html" class="nav-link active">Comparison</a>
+      </div>
+    </nav>
+    <p class="eyebrow">SDG 5 &middot; Gender Equality &middot; CDS6324 Data Visualization Project</p>
+    <h1>Compare Two Countries</h1>
+    <p class="sub">Pick any two countries and a year to see how they line up across survival, education, work, and power &mdash; drawn from the same UNDP Human Development Report indices as the main dashboard. Empty cells mean no data was reported for that country and year.</p>
+    <p class="credits">Group TT4L_G11 &middot; Imran Syahmi &middot; Abdullah Nasih Ulwan &middot; Danish Adam &middot; Submitted to Dr. Aziah Binti Ali</p>
+  </header>
+
+  <div class="cmp-bar">
+    <div class="group">
+      <label>Country A</label>
+      <select id="countryA"></select>
+    </div>
+    <div class="group">
+      <label>Country B</label>
+      <select id="countryB"></select>
+    </div>
+    <div class="group year-group">
+      <label>Year &middot; <span class="cmp-year-readout" id="yearReadout">2023</span></label>
+      <input type="range" id="yearSlider" min="1990" max="2023" value="2023" step="1">
+    </div>
+  </div>
+
+  <div class="cmp-head-cards" id="headCards"></div>
+
+  <div id="barSection"></div>
+
+  <p class="cmp-section-title">Full indicator table</p>
+  <table class="cmp-table">
+    <thead>
+      <tr>
+        <th class="metric">Indicator</th>
+        <th id="thA" class="val a">Country A</th>
+        <th id="thB" class="val b">Country B</th>
+        <th>Difference</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <p class="cmp-note">
+    Coloured value = the more favourable figure where a metric has a clear direction
+    (e.g. higher labour-force participation, lower maternal mortality, GII closer to 0, GDI closer to 1).
+    Gap rows and population are shown for context only and are not scored.
+  </p>
+
+</div>
+
+<script src="data.js"></script>
+<script>
+/* ============================================================
+   Build lookup: (country, year) -> full record
+   DATA is the shared columnar object loaded from data.js
+   ============================================================ */
+const N = DATA.iso3.length;
+const RECORDS = [];
+for (let i = 0; i < N; i++) {
+  RECORDS.push({
+    iso3: DATA.iso3[i], country: DATA.country[i], year: DATA.year[i],
+    region: DATA.region_label[i], hdicode: DATA.hdicode[i], hdi_rank: DATA.hdi_rank_2023[i],
+    le_f: DATA.le_f[i], le_m: DATA.le_m[i], le_gap: DATA.le_gap[i],
+    mmr: DATA.mmr[i], abr: DATA.abr[i], pop: DATA.pop_total[i],
+    se_f: DATA.se_f[i], se_m: DATA.se_m[i], edu_gap: DATA.edu_gap[i],
+    lfpr_f: DATA.lfpr_f[i], lfpr_m: DATA.lfpr_m[i], lfpr_gap: DATA.lfpr_gap[i],
+    pr_f: DATA.pr_f[i], gii: DATA.gii[i], gdi: DATA.gdi[i]
+  });
+}
+
+const COUNTRIES = Array.from(new Set(RECORDS.map(d => d.country))).sort();
+// lookup[country][year] = record
+const lookup = {};
+for (const r of RECORDS) {
+  (lookup[r.country] = lookup[r.country] || {})[r.year] = r;
+}
+
+/* ============================================================
+   Metric definitions
+   dir:  'high'  higher is better
+         'low'   lower is better
+         'one'   closer to 1 is better (GDI)
+         'rank'  lower rank number is better
+         null    context only (no winner)
+   fmt:  formatting helper key
+   ============================================================ */
+const SECTIONS = [
+  { title: 'Composite gender indices', rows: [
+    { key: 'gii', label: 'Gender Inequality Index (GII)', note: '0 = full equality', dir: 'low',  fmt: 'dec2' },
+    { key: 'gdi', label: 'Gender Development Index (GDI)', note: '1 = parity',        dir: 'one',  fmt: 'dec2' },
+    { key: 'hdi_rank', label: 'HDI rank (2023)',           note: 'lower = higher HDI', dir: 'rank', fmt: 'int' },
+  ]},
+  { title: 'Health & survival', rows: [
+    { key: 'le_f', label: 'Life expectancy, female', note: 'years', dir: 'high', fmt: 'dec1' },
+    { key: 'le_m', label: 'Life expectancy, male',   note: 'years', dir: 'high', fmt: 'dec1' },
+    { key: 'le_gap', label: 'Life-expectancy gap', note: 'female − male, years', dir: null, fmt: 'signed1' },
+    { key: 'mmr', label: 'Maternal mortality ratio', note: 'per 100,000 live births', dir: 'low', fmt: 'dec0' },
+    { key: 'abr', label: 'Adolescent birth rate', note: 'per 1,000 women 15–19', dir: 'low', fmt: 'dec1' },
+  ]},
+  { title: 'Education parity', rows: [
+    { key: 'se_f', label: 'Secondary education, female', note: '% aged 25+', dir: 'high', fmt: 'dec1' },
+    { key: 'se_m', label: 'Secondary education, male',   note: '% aged 25+', dir: 'high', fmt: 'dec1' },
+    { key: 'edu_gap', label: 'Education gap', note: 'female − male, pts', dir: null, fmt: 'signed1' },
+  ]},
+  { title: 'Work & power', rows: [
+    { key: 'lfpr_f', label: 'Labour-force participation, female', note: '%', dir: 'high', fmt: 'dec1' },
+    { key: 'lfpr_m', label: 'Labour-force participation, male',   note: '%', dir: 'high', fmt: 'dec1' },
+    { key: 'lfpr_gap', label: 'Participation gap', note: 'female − male, pts', dir: null, fmt: 'signed1' },
+    { key: 'pr_f', label: 'Seats in parliament held by women', note: '%', dir: 'high', fmt: 'dec1' },
+  ]},
+  { title: 'Context', rows: [
+    { key: 'pop', label: 'Population', note: 'millions', dir: null, fmt: 'dec1' },
+  ]},
+];
+
+/* Headline metrics for the visual bar section */
+const HEADLINE = [
+  { key: 'lfpr_f', label: "Women in the workforce (%)", max: 100 },
+  { key: 'se_f',   label: 'Women with secondary education (%)', max: 100 },
+  { key: 'pr_f',   label: 'Women in parliament (%)', max: 100 },
+];
+
+/* ---------- formatting ---------- */
+function isNum(v){ return v !== null && v !== undefined && !Number.isNaN(v); }
+function fmt(v, kind){
+  if (!isNum(v)) return null;
+  switch (kind){
+    case 'int':     return String(Math.round(v));
+    case 'dec0':    return v.toLocaleString(undefined,{maximumFractionDigits:0});
+    case 'dec1':    return v.toFixed(1);
+    case 'dec2':    return v.toFixed(2);
+    case 'signed1': return (v>0?'+':'') + v.toFixed(1);
+    default:        return String(v);
+  }
+}
+/* returns 'a' | 'b' | null : which side is more favourable */
+function winner(dir, a, b){
+  if (!dir) return null;
+  if (!isNum(a) || !isNum(b) || a === b) return null;
+  if (dir === 'high') return a > b ? 'a' : 'b';
+  if (dir === 'low' || dir === 'rank') return a < b ? 'a' : 'b';
+  if (dir === 'one') return Math.abs(1-a) < Math.abs(1-b) ? 'a' : 'b';
+  return null;
+}
+
+/* ---------- populate country selects ---------- */
+const selA = document.getElementById('countryA');
+const selB = document.getElementById('countryB');
+for (const c of COUNTRIES){
+  selA.appendChild(new Option(c, c));
+  selB.appendChild(new Option(c, c));
+}
+selA.value = COUNTRIES.includes('Malaysia') ? 'Malaysia' : COUNTRIES[0];
+selB.value = COUNTRIES.includes('Norway')   ? 'Norway'   : COUNTRIES[1];
+
+const yearSlider   = document.getElementById('yearSlider');
+const yearReadout  = document.getElementById('yearReadout');
+
+/* ---------- render ---------- */
+function render(){
+  const ca = selA.value, cb = selB.value;
+  const yr = +yearSlider.value;
+  yearReadout.textContent = yr;
+
+  const ra = lookup[ca] && lookup[ca][yr];
+  const rb = lookup[cb] && lookup[cb][yr];
+
+  document.getElementById('thA').textContent = ca;
+  document.getElementById('thB').textContent = cb;
+
+  /* --- header cards --- */
+  const cards = document.getElementById('headCards');
+  cards.innerHTML = '';
+  [['a', ca, ra], ['b', cb, rb]].forEach(([cls, name, r]) => {
+    const rank = r && isNum(r.hdi_rank) ? `HDI rank ${Math.round(r.hdi_rank)} of 193` : 'HDI rank —';
+    const region = r ? r.region : '';
+    const hdicode = r && r.hdicode ? r.hdicode + ' human development' : '';
+    const div = document.createElement('div');
+    div.className = 'cmp-card ' + cls;
+    div.innerHTML =
+      `<h2>${name}</h2>` +
+      `<p class="meta">${region}${hdicode ? ' &middot; ' + hdicode : ''}</p>` +
+      `<p class="rank">${rank}</p>`;
+    cards.appendChild(div);
+  });
+
+  /* --- headline bars --- */
+  const bs = document.getElementById('barSection');
+  bs.innerHTML = '<p class="cmp-section-title">At a glance</p>';
+  for (const h of HEADLINE){
+    const va = ra ? ra[h.key] : null;
+    const vb = rb ? rb[h.key] : null;
+    bs.insertAdjacentHTML('beforeend',
+      `<div class="cmp-bar-wrap">
+         <span class="cmp-bar-name">${h.label}</span>
+         <div class="cmp-bar-track">
+           ${isNum(va) ? `<div class="cmp-seg a" style="width:${Math.max(va/h.max*50,6)}%">${va.toFixed(1)}</div>` : ''}
+           ${isNum(vb) ? `<div class="cmp-seg b" style="width:${Math.max(vb/h.max*50,6)}%">${vb.toFixed(1)}</div>` : ''}
+         </div>
+       </div>`);
+  }
+  bs.insertAdjacentHTML('beforeend',
+    `<p class="cmp-note"><span style="color:var(--male)">■</span> ${ca}
+      &nbsp;&nbsp;<span style="color:var(--female)">■</span> ${cb}
+      &nbsp;&mdash; bar length is scaled to a 0–100% range.</p>`);
+
+  /* --- full table --- */
+  const tb = document.getElementById('tableBody');
+  tb.innerHTML = '';
+  for (const section of SECTIONS){
+    const head = document.createElement('tr');
+    head.innerHTML = `<td class="metric" colspan="4"><small style="text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);">${section.title}</small></td>`;
+    tb.appendChild(head);
+
+    for (const row of section.rows){
+      const va = ra ? ra[row.key] : null;
+      const vb = rb ? rb[row.key] : null;
+      const win = winner(row.dir, va, vb);
+      const fa = fmt(va, row.fmt);
+      const fb = fmt(vb, row.fmt);
+
+      let diff = '';
+      if (isNum(va) && isNum(vb)) {
+        const d = va - vb;
+        diff = (d > 0 ? '+' : '') + d.toFixed(row.fmt === 'int' ? 0 : (row.fmt === 'dec2' ? 2 : 1));
+      } else {
+        diff = '—';
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="metric">${row.label}<small>${row.note}</small></td>` +
+        `<td class="val a ${win==='a'?'winner':''}" style="${win==='a'?'':'font-weight:500;'}">${fa ?? '<span class="na">—</span>'}${win==='a'?' ●':''}</td>` +
+        `<td class="val b ${win==='b'?'winner':''}" style="${win==='b'?'':'font-weight:500;'}">${fb ?? '<span class="na">—</span>'}${win==='b'?' ●':''}</td>` +
+        `<td class="val" style="color:var(--ink-soft);">${diff}</td>`;
+      tb.appendChild(tr);
+    }
+  }
+}
+
+selA.addEventListener('change', render);
+selB.addEventListener('change', render);
+yearSlider.addEventListener('input', render);
+render();
+</script>
+</body>
+</html>
